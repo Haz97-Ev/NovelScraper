@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio';
 import { NovelT } from "./types";
 import { hashString } from "../utils";
-import { NovelSource, NovelSourceProps } from "./template";
+import { BrowseSortT, NovelSource, NovelSourceProps } from "./template";
 
 export class NovelBin extends NovelSource {
 
@@ -15,7 +15,25 @@ export class NovelBin extends NovelSource {
 		const response = await this.fetchHTML(url);
 		if (!response) throw new Error('Failed to search novels');
 
-		const $ = cheerio.load(response);
+		return this.parseNovelList(response);
+	}
+
+	get browseSorts(): BrowseSortT[] {
+		return [
+			{ id: "novelbin-popular", label: "Popular" },
+			{ id: "novelbin-daily-update", label: "Latest" },
+		];
+	}
+
+	async browseNovels(sortId: string, page: number): Promise<NovelT[]> {
+		const url = `${this.url}/sort/${sortId}?page=${page}`;
+		const response = await this.fetchHTML(url);
+		if (!response) throw new Error('Failed to load novels');
+		return this.parseNovelList(response);
+	}
+
+	private parseNovelList(html: string): NovelT[] {
+		const $ = cheerio.load(html);
 		const novels: NovelT[] = [];
 		$("#list-page .col-novel-main .list-novel .row").each((_, elem) => {
 			const titleElem = $(elem).find(".novel-title a")

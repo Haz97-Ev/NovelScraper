@@ -1,0 +1,72 @@
+name: "windows-build"
+
+# Builds a Windows installer for this fork and publishes it as the "windows-latest" release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - browse-and-quick-download
+
+concurrency:
+  group: windows-build
+  cancel-in-progress: true
+
+jobs:
+  build-windows:
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: "pnpm"
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The fork config turns off signed updater artifacts (they need the upstream signing key)
+      # and points the in-app updater at this fork instead of the original repo
+      - name: build app
+        run: pnpm tauri build --config src-tauri/tauri.fork.conf.json
+
+      - name: upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: NovelScraper-windows
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+
+      - name: publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete windows-latest --yes --cleanup-tag || true
+          gh release create windows-latest \
+            --target "$GITHUB_SHA" \
+            --title "NovelScraper for Windows (latest build)" \
+            --notes "Built from \`${GITHUB_REF_NAME}\` at ${GITHUB_SHA}. Download the \`-setup.exe\` file and run it. Windows may show a SmartScreen warning because the installer isn't code-signed; choose More info, then Run anyway." \
+            src-tauri/target/release/bundle/nsis/*.exe \
+            src-tauri/target/release/bundle/msi/*.msi

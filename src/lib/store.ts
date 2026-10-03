@@ -52,6 +52,15 @@ Object.keys(SOURCES).forEach((s) => {
 });
 export const searchHistoryAtom = atomWithImmer<searchHistoryT>(searchHistory);
 
+export type BrowseStateT = {
+	sortId: string;
+	novels: NovelT[];
+	sourcePagesLoaded: number;
+	isExhausted: boolean;
+	page: number;
+}
+export const browseStateAtom = atomWithImmer<{ [key in SourceIDsT]?: BrowseStateT }>({});
+
 export const activeNovelAtom = atom<NovelT | null>(null);
 export const downloadStatusAtom = atomWithImmer<{ [key: string]: DownloadDataT }>({});
 

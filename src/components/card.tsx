@@ -10,12 +10,14 @@ type CardUIProps = {
 	title: string;
 	subTitle: string;
 	badges?: ReactNode[];
+	action?: ReactNode;
+	footer?: ReactNode;
 	onClick?: () => void;
 }
-export function CardUI({ href, imageURL, title, subTitle, badges, onClick = () => { } }: CardUIProps) {
-	return (
+export function CardUI({ href, imageURL, title, subTitle, badges, action, footer, onClick = () => { } }: CardUIProps) {
+	const card = (
 		<Link
-			className={`relative flex flex-col gap-3 group rounded-lg bg-card border p-2 pb-3 hover:border-primary`}
+			className={`relative flex flex-col gap-3 group rounded-lg bg-card border p-2 pb-3 hover:border-primary h-full`}
 			href={href}
 			onClick={onClick}
 		>
@@ -30,8 +32,16 @@ export function CardUI({ href, imageURL, title, subTitle, badges, onClick = () =
 			<div className="flex flex-col gap-1">
 				<SmallP className="text-ellipsis text-nowrap overflow-hidden">{title}</SmallP>
 				<TinyP className="text-muted-foreground text-ellipsis text-nowrap overflow-hidden pb-1">{subTitle}</TinyP>
+				{footer}
 			</div>
 		</Link>
+	)
+	if (!action) return card;
+	return (
+		<div className="relative">
+			{card}
+			<div className="absolute top-3 left-3 z-20">{action}</div>
+		</div>
 	)
 }
 

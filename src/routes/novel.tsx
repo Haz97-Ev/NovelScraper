@@ -9,8 +9,8 @@ import { useEffect, useState } from "react";
 import clone from "clone";
 import { Button } from "@/components/ui/button";
 import { BookmarkMinusSolid, BookmarkPlusSolid, DownloadSolid, ExternalLink, FolderSolid, ImageSolid, RefreshSolid, XSquareSolid } from "@mynaui/icons-react";
-import { deleteNovelData, fetchMetadataForNovel, getNovelChapters, getNovelPath, getNovelStore, getUnCachedFileSrc, saveNovelCover, saveNovelCoverFromLocalFile, saveNovelEpub } from "@/lib/library/library";
-import EpubTemplate from "@/lib/library/epub";
+import { deleteNovelData, fetchMetadataForNovel, getNovelPath, getUnCachedFileSrc, saveNovelCover, saveNovelCoverFromLocalFile } from "@/lib/library/library";
+import { useNovelDownloader } from "@/lib/library/download";
 import { ask, message } from "@tauri-apps/plugin-dialog";
 import { TooltipUI } from "@/components/tooltip";
 import { Progress } from "@/components/ui/progress";
@@ -36,6 +36,7 @@ function RouteComponent() {
 	const [isDownloading, setIsDownloading] = useState(false);
 	const docker = useAtomValue(dockerAtom);
 	const [cfReady, setCFReady] = useState(true);
+	const { downloadNovel } = useNovelDownloader();
 
 	useEffect(() => {
 		loadNovelMetadata();
@@ -111,48 +112,9 @@ function RouteComponent() {
 	}
 
 	const handleDownload = async () => {
-		if (
-			!novel
-			|| !novel.isInLibrary
-			|| isDownloading
-			|| novelDownloadStatus?.status === "Downloading"
-		) return;
+		if (!novel || isDownloading || novelDownloadStatus?.status === "Downloading") return;
 		setIsDownloading(true);
-		try {
-			const novelSource = SOURCES[novel.source];
-			await new Promise((resolve) => setTimeout(resolve, 500));
-			const libNovel = clone(novel);
-			const preDownloadedChapters = await getNovelChapters(novel);
-			const novelStore = await getNovelStore(novel);
-			setDownloadStatus(status => {
-				status[novel.id] = {
-					novel_id: novel.id,
-					status: "Downloading",
-					downloaded_chapters_count: preDownloadedChapters.length,
-					downloaded_chapters: preDownloadedChapters,
-					novelStore,
-				};
-			});
-			const downloadOptions = appState.sourceDownloadOptions[novelSource.id]
-			const result = await novelSource.downloadNovel(
-				novel,
-				downloadOptions.downloadBatchSize,
-				downloadOptions.downloadBatchDelay,
-				preDownloadedChapters.length
-			);
-			const chapters = [...preDownloadedChapters, ...result.chapters];
-			if (result.status === "Completed") {
-				const epub = await EpubTemplate.generateEpub(novel, chapters);
-				await saveNovelEpub(novel, epub, appState.libraryRootPath);
-				libNovel.isDownloaded = true;
-				libNovel.downloadedAt = new Date().toISOString();
-			}
-			libNovel.downloadedChapters = chapters.length;
-			updateState(libNovel, true);
-		} catch (e) {
-			console.error(e);
-			await message(`${e}`, { title: `${SOURCES[novel.source].name} : ${novel.title}`, kind: 'error' });
-		}
+		await downloadNovel(novel);
 		setIsDownloading(false);
 	}
 
@@ -269,11 +231,11 @@ function RouteComponent() {
 					<TooltipUI content="Change Cover" side="bottom" sideOffset={8}>
 						<Button size="icon" variant="outline" onClick={handleChangeCover}><ImageSolid /></Button>
 					</TooltipUI>
-					{(novel.isInLibrary && novelDownloadStatus?.status !== "Downloading") &&
+					{novelDownloadStatus?.status !== "Downloading" &&
 						<TooltipUI content="Download" side="bottom" sideOffset={8}>
 							<Button className="!p-0" size="icon" onClick={handleDownload} disabled={isDownloading || !cfReady}><DownloadSolid /></Button>
 						</TooltipUI>}
-					{(novel.isInLibrary && novelDownloadStatus?.status === "Downloading") &&
+					{novelDownloadStatus?.status === "Downloading" &&
 						<TooltipUI content="Cancel Download" side="bottom" sideOffset={8}>
 							<Button className="!p-0" size="icon" variant="destructive" onClick={handleCancelDownload}><XSquareSolid /></Button>
 						</TooltipUI>}

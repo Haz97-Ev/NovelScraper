@@ -11,6 +11,11 @@ export type NovelSourceProps = {
 	url: string;
 	cloudflareProtected: boolean;
 }
+export type BrowseSortT = {
+	id: string;
+	label: string;
+}
+
 export class NovelSource {
 	id: SourceIDsT;
 	name: string;
@@ -36,6 +41,16 @@ export class NovelSource {
 
 	async searchNovels(query: string): Promise<NovelT[]> {
 		throw new Error(`${this.name}: 'searchNovels' method not implemented.`);
+	}
+
+	// Sort orders the source's own novel listings support; empty means browsing isn't supported
+	get browseSorts(): BrowseSortT[] {
+		return [];
+	}
+
+	// Returns one page (1-based) of the source's novel listing, or an empty list past the last page
+	async browseNovels(sortId: string, page: number): Promise<NovelT[]> {
+		throw new Error(`${this.name}: 'browseNovels' method not implemented.`);
 	}
 
 	async getNovelMetadata(novel: NovelT): Promise<NovelT> {
