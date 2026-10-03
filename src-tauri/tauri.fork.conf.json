@@ -6,7 +6,7 @@
 	"plugins": {
 		"updater": {
 			"endpoints": [
-				"https://github.com/Haz97-Ev/NovelScraper/releases/latest/download/latest.json"
+				"https://github.com/Haz97-Ev/NovelScraper-private/releases/latest/download/latest.json"
 			]
 		}
 	}

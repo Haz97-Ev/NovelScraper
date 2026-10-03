@@ -1,13 +1,12 @@
 name: "windows-build"
 
-# Builds a Windows installer for this fork as a private run artifact (no public release)
+# Builds the Windows installer as a run artifact (only people with access to this private repo can download it)
 
 on:
   workflow_dispatch:
   push:
     branches:
       - master
-      - browse-and-quick-download
 
 concurrency:
   group: windows-build
