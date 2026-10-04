@@ -13,6 +13,7 @@ import { DownloadDataT } from "@/lib/sources/types";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { AppStateV1T } from "@/lib/deprecated";
+import { DownloadQueueRunner } from "@/lib/library/download";
 
 export const Route = createRootRoute({
 	component: RootComponent,
@@ -38,6 +39,12 @@ function RootComponent() {
 
 		const downloadStatusListenerP = listen<DownloadDataT>("download-status", (event) => {
 			const data = event.payload;
+
+			// Save progress on the library novel too, so the progress bar survives a restart
+			if (data.status !== "Error") setLibraryState((library) => {
+				const libNovel = library.novels[data.novel_id];
+				if (libNovel) libNovel.downloadedChapters = data.downloaded_chapters_count;
+			});
 
 			setDownloadStatus((state) => {
 				state[data.novel_id].status = data.status;
@@ -119,6 +126,11 @@ function RootComponent() {
 				library.version = 2;
 			}
 
+			// Downloads stop when the app closes, so any that were running are now paused
+			for (const novel of Object.values(library.novels)) {
+				if (novel.downloadState === "Downloading") novel.downloadState = "Paused";
+			}
+
 			setLibraryState(library);
 		} catch (e) {
 			console.error(e);
@@ -133,6 +145,7 @@ function RootComponent() {
 			<SidebarProvider defaultOpen={appState.isSidePanelOpen}>
 				<AppSidebar />
 				<Outlet />
+				<DownloadQueueRunner />
 			</SidebarProvider>
 			{/* <TanStackRouterDevtools position='bottom-right' /> */}
 		</Fragment>

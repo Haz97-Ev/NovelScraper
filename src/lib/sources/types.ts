@@ -34,7 +34,11 @@ export type NovelT = {
 	updatedChaptersAt?: string;
 	downloadedAt?: string;
 	isUpdating: boolean;
+	// Saved download state, so progress and pauses survive restarts
+	downloadState?: NovelDownloadStateT;
 }
+
+export type NovelDownloadStateT = "Downloading" | "Paused" | "Completed" | "Error";
 
 export type DownloadStatus = "Downloading" | "Paused" | "Completed" | "Cancelled" | "Error";
 export type DownloadDataT = {

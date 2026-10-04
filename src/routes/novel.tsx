@@ -8,9 +8,9 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai/react";
 import { useEffect, useState } from "react";
 import clone from "clone";
 import { Button } from "@/components/ui/button";
-import { BookmarkMinusSolid, BookmarkPlusSolid, DownloadSolid, ExternalLink, FolderSolid, ImageSolid, RefreshSolid, XSquareSolid } from "@mynaui/icons-react";
+import { BookmarkMinusSolid, BookmarkPlusSolid, DownloadSolid, ExternalLink, FolderSolid, ImageSolid, ListNumber, PauseSolid, PlaySolid, RefreshSolid, XSquareSolid } from "@mynaui/icons-react";
 import { deleteNovelData, fetchMetadataForNovel, getNovelPath, getUnCachedFileSrc, saveNovelCover, saveNovelCoverFromLocalFile } from "@/lib/library/library";
-import { useNovelDownloader } from "@/lib/library/download";
+import { isNovelFullyDownloaded, useDownloadQueue, useNovelDownloader } from "@/lib/library/download";
 import { ask, message } from "@tauri-apps/plugin-dialog";
 import { TooltipUI } from "@/components/tooltip";
 import { Progress } from "@/components/ui/progress";
@@ -36,7 +36,8 @@ function RouteComponent() {
 	const [isDownloading, setIsDownloading] = useState(false);
 	const docker = useAtomValue(dockerAtom);
 	const [cfReady, setCFReady] = useState(true);
-	const { downloadNovel } = useNovelDownloader();
+	const { downloadNovel, pauseDownload } = useNovelDownloader();
+	const { queue, addToQueue, removeFromQueue } = useDownloadQueue();
 
 	useEffect(() => {
 		loadNovelMetadata();
@@ -118,15 +119,17 @@ function RouteComponent() {
 		setIsDownloading(false);
 	}
 
-	const handleCancelDownload = async () => {
+	const handlePauseDownload = async () => {
 		if (!novel) return;
-		try {
-			const novelSource = SOURCES[novel.source];
-			await novelSource.cancelDownload(novel);
-		} catch (e) {
-			console.error(e);
-			await message(`Couldn't cancel download for ${novel.title}`, { title: SOURCES[novel.source].name, kind: 'error' });
-		}
+		await pauseDownload(novel);
+	}
+
+	const handleToggleQueue = async () => {
+		if (!novel) return;
+		if (isQueued) return removeFromQueue(novel.id);
+		setIsDownloading(true);
+		await addToQueue(novel);
+		setIsDownloading(false);
 	}
 
 	const handleOpenNovelFolder = async () => {
@@ -208,6 +211,9 @@ function RouteComponent() {
 	}
 
 	if (!novel || isLoading) return <Loader />
+	const isQueued = queue.includes(novel.id);
+	const canResume = novel.downloadState === "Paused" || (novel.downloadedChapters > 0 && !isNovelFullyDownloaded(novel));
+	const downloadedCount = novelDownloadStatus?.downloaded_chapters_count ?? novel.downloadedChapters;
 	return (
 		<Page>
 			{SOURCES[novel.source].cloudflareProtected && <CloudflareResolverStatus />}
@@ -232,25 +238,29 @@ function RouteComponent() {
 						<Button size="icon" variant="outline" onClick={handleChangeCover}><ImageSolid /></Button>
 					</TooltipUI>
 					{novelDownloadStatus?.status !== "Downloading" &&
-						<TooltipUI content="Download" side="bottom" sideOffset={8}>
-							<Button className="!p-0" size="icon" onClick={handleDownload} disabled={isDownloading || !cfReady}><DownloadSolid /></Button>
+						<TooltipUI content={canResume ? "Resume Download" : "Download"} side="bottom" sideOffset={8}>
+							<Button className="!p-0" size="icon" onClick={handleDownload} disabled={isDownloading || !cfReady}>{canResume ? <PlaySolid /> : <DownloadSolid />}</Button>
 						</TooltipUI>}
 					{novelDownloadStatus?.status === "Downloading" &&
-						<TooltipUI content="Cancel Download" side="bottom" sideOffset={8}>
-							<Button className="!p-0" size="icon" variant="destructive" onClick={handleCancelDownload}><XSquareSolid /></Button>
+						<TooltipUI content="Pause Download" side="bottom" sideOffset={8}>
+							<Button className="!p-0" size="icon" variant="destructive" onClick={handlePauseDownload}><PauseSolid /></Button>
+						</TooltipUI>}
+					{novelDownloadStatus?.status !== "Downloading" &&
+						<TooltipUI content={isQueued ? "Remove from Queue" : "Add to Queue"} side="bottom" sideOffset={8}>
+							<Button className="!p-0" size="icon" variant="secondary" onClick={handleToggleQueue} disabled={isDownloading || (!isQueued && !cfReady)}>{isQueued ? <XSquareSolid /> : <ListNumber />}</Button>
 						</TooltipUI>}
 					{(novel.isInLibrary && novel.isDownloaded) && <TooltipUI content="Open Folder" side="bottom" sideOffset={8}>
 						<Button className="!p-0" size="icon" onClick={handleOpenNovelFolder}><FolderSolid /></Button>
 					</TooltipUI>}
 				</div>
 
-				{novelDownloadStatus &&
+				{(novelDownloadStatus || novel.downloadedChapters > 0 || isQueued) &&
 					<div className="flex flex-col gap-1 w-72">
 						<div className="flex justify-between">
-							<TinyP>{novelDownloadStatus.status}</TinyP>
-							<TinyP>{novelDownloadStatus.downloaded_chapters_count} / {novel.totalChapters}</TinyP>
+							<TinyP>{novelDownloadStatus?.status === "Downloading" ? "Downloading" : isQueued ? "Queued" : novel.downloadState ?? novelDownloadStatus?.status ?? "Partly downloaded"}</TinyP>
+							<TinyP>{downloadedCount} / {novel.totalChapters ?? "?"}</TinyP>
 						</div>
-						<Progress value={((novelDownloadStatus?.downloaded_chapters_count || 0) / (novel.totalChapters || 1)) * 100} content="Downloading" />
+						<Progress value={Math.min(100, (downloadedCount / (novel.totalChapters || 1)) * 100)} content="Downloading" />
 					</div>
 				}
 			</div>

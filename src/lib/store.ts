@@ -23,14 +23,23 @@ export type AppStateT = {
 	sourceDownloadOptions: {
 		[key in SourceIDsT]: DownloadOptionsT;
 	}
+	// Library novel ids waiting to download, in order; the first one downloads next
+	downloadQueue?: string[];
+	queueLimit?: number;
+	maxConcurrentDownloads?: number;
 }
+export const DEFAULT_QUEUE_LIMIT = 50;
+export const DEFAULT_MAX_CONCURRENT_DOWNLOADS = 1;
 export const appStateAtom = atomWithImmer<AppStateT>({
 	key: 'appState',
 	version: 2,
 	viewedNotesForVersion: undefined,
 	isSidePanelOpen: true,
 	libraryRootPath: "",
-	sourceDownloadOptions: getSourceDownloadOptions()
+	sourceDownloadOptions: getSourceDownloadOptions(),
+	downloadQueue: [],
+	queueLimit: DEFAULT_QUEUE_LIMIT,
+	maxConcurrentDownloads: DEFAULT_MAX_CONCURRENT_DOWNLOADS,
 })
 
 export type LibraryStateT = {
@@ -60,6 +69,12 @@ export type BrowseStateT = {
 	page: number;
 }
 export const browseStateAtom = atomWithImmer<{ [key in SourceIDsT]?: BrowseStateT }>({});
+
+export type LibraryFiltersT = {
+	status: "all" | "completed" | "ongoing";
+	download: "all" | "downloaded" | "partial" | "not-downloaded";
+}
+export const libraryFiltersAtom = atomWithImmer<LibraryFiltersT>({ status: "all", download: "all" });
 
 export const activeNovelAtom = atom<NovelT | null>(null);
 export const downloadStatusAtom = atomWithImmer<{ [key: string]: DownloadDataT }>({});

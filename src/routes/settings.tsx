@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { open } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { useAtom } from 'jotai/react';
-import { appStateAtom } from '@/lib/store';
+import { appStateAtom, DEFAULT_MAX_CONCURRENT_DOWNLOADS, DEFAULT_QUEUE_LIMIT } from '@/lib/store';
 import * as path from '@tauri-apps/api/path';
 import Page from '@/components/page';
 import { createLibraryDir } from '@/lib/library/library';
@@ -16,6 +16,11 @@ import { SourceIDsT, SOURCES } from "@/lib/sources/sources";
 export const Route = createFileRoute('/settings')({
 	component: RouteComponent,
 })
+
+const MAX_CONCURRENT_DOWNLOADS = 5;
+const MIN_QUEUE_LIMIT = 5;
+const MAX_QUEUE_LIMIT = 500;
+const QUEUE_LIMIT_STEP = 5;
 
 function RouteComponent() {
 	const [appState, setAppState] = useAtom(appStateAtom);
@@ -70,6 +75,27 @@ function RouteComponent() {
 		});
 	}
 
+	const queueLimit = appState.queueLimit ?? DEFAULT_QUEUE_LIMIT;
+	const maxConcurrentDownloads = appState.maxConcurrentDownloads ?? DEFAULT_MAX_CONCURRENT_DOWNLOADS;
+
+	const handleChangeQueueLimit = (change: number) => {
+		const newLimit = queueLimit + change;
+		if (newLimit < MIN_QUEUE_LIMIT || newLimit > MAX_QUEUE_LIMIT) return;
+		setAppState((state) => {
+			state.queueLimit = newLimit;
+			return state;
+		});
+	}
+
+	const handleChangeMaxConcurrentDownloads = (change: number) => {
+		const newMax = maxConcurrentDownloads + change;
+		if (newMax < 1 || newMax > MAX_CONCURRENT_DOWNLOADS) return;
+		setAppState((state) => {
+			state.maxConcurrentDownloads = newMax;
+			return state;
+		});
+	}
+
 	const handleWriteFile = async () => {
 		const contents = JSON.stringify({ notifications: true });
 		const filePath = await path.join(appState.libraryRootPath, "config.json");
@@ -88,6 +114,28 @@ function RouteComponent() {
 					<InfoCircle className="w-4 h-4" />
 					The <b><i>NovelScraper-Library</i></b> folder will be created in the selected path.
 				</TinyP>
+			</div>
+
+			<div className="relative border p-4 pt-5 rounded-lg flex flex-col gap-4">
+				<SmallP className="absolute -top-2 left-2 bg-background px-2">Download Queue</SmallP>
+				<CounterUI
+					title="Max Concurrent Downloads"
+					count={maxConcurrentDownloads}
+					onIncrease={() => handleChangeMaxConcurrentDownloads(1)}
+					onDecrease={() => handleChangeMaxConcurrentDownloads(-1)}
+					info="How many queued novels download at the same time. More is faster but makes a ban from the site more likely."
+					minCount={1}
+					maxCount={MAX_CONCURRENT_DOWNLOADS}
+				/>
+				<CounterUI
+					title="Queue Limit"
+					count={queueLimit}
+					onIncrease={() => handleChangeQueueLimit(QUEUE_LIMIT_STEP)}
+					onDecrease={() => handleChangeQueueLimit(-QUEUE_LIMIT_STEP)}
+					info="The most novels the download queue can hold."
+					minCount={MIN_QUEUE_LIMIT}
+					maxCount={MAX_QUEUE_LIMIT}
+				/>
 			</div>
 
 			<div className="relative border p-4 pt-5 rounded-lg flex flex-col gap-4">

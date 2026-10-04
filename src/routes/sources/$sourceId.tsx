@@ -1,4 +1,4 @@
-import { CardUI, CardGridUI } from "@/components/card"
+import { CardGridUI } from "@/components/card"
 import { CloudflareResolverStatus } from "@/components/cloudflare-resolver"
 import Page from '@/components/page'
 import SearchBar from "@/components/search-bar"
@@ -7,8 +7,8 @@ import { getUnCachedFileSrc } from "@/lib/library/library"
 import { SourceIDsT, SOURCES } from '@/lib/sources/sources'
 import { NovelSource } from "@/lib/sources/template"
 import { NovelT } from "@/lib/sources/types"
-import { activeNovelAtom, browseStateAtom, dockerAtom, downloadStatusAtom, libraryStateAtom, searchHistoryAtom } from "@/lib/store"
-import { BookmarkSolid, ChevronLeft, ChevronRight, CircleDashed, DownloadSolid, ExternalLink } from "@mynaui/icons-react"
+import { activeNovelAtom, browseStateAtom, dockerAtom, libraryStateAtom, searchHistoryAtom } from "@/lib/store"
+import { BookmarkSolid, ChevronLeft, ChevronRight, CircleDashed, ExternalLink } from "@mynaui/icons-react"
 import { createFileRoute, useLocation } from '@tanstack/react-router'
 import { message } from "@tauri-apps/plugin-dialog"
 import { useAtom, useAtomValue, useSetAtom } from "jotai/react"
@@ -18,9 +18,8 @@ import { TooltipUI } from "@/components/tooltip"
 import { openUrl } from "@tauri-apps/plugin-opener"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Progress } from "@/components/ui/progress"
 import { TinyP } from "@/components/typography"
-import { isNovelDownloading, useNovelDownloader } from "@/lib/library/download"
+import { NovelDownloadCard } from "@/components/novel-download-card"
 
 const BROWSE_PAGE_SIZE = 20;
 
@@ -39,12 +38,9 @@ function RouteComponent() {
 	const libraryState = useAtomValue(libraryStateAtom);
 	const setActiveNovel = useSetAtom(activeNovelAtom);
 	const docker = useAtomValue(dockerAtom);
-	const downloadStatus = useAtomValue(downloadStatusAtom);
 	const [browseState, setBrowseState] = useAtom(browseStateAtom);
 	const [isBrowsing, setIsBrowsing] = useState(false);
 	const [tab, setTab] = useState<"browse" | "search">("browse");
-	const [preparingDownloads, setPreparingDownloads] = useState<string[]>([]);
-	const { downloadNovel } = useNovelDownloader();
 
 	const canBrowse = !!source && source.browseSorts.length > 0;
 	const cfReady = !source?.cloudflareProtected || (docker.engineStatus && docker.cfResolverStatus);
@@ -103,13 +99,6 @@ function RouteComponent() {
 		setIsBrowsing(false);
 	}
 
-	const handleQuickDownload = async (novel: NovelT) => {
-		if (preparingDownloads.includes(novel.id)) return;
-		setPreparingDownloads((ids) => [...ids, novel.id]);
-		await downloadNovel(novel);
-		setPreparingDownloads((ids) => ids.filter((id) => id !== novel.id));
-	}
-
 	const handleSearch = async (query: string) => {
 		if (!source || !query || isSearching) return;
 		try {
@@ -158,20 +147,16 @@ function RouteComponent() {
 	const renderNovelCard = (_novel: NovelT) => {
 		if (!source) return null;
 		const novel = libraryState.novels[_novel.id] ?? _novel;
-		const status = downloadStatus[novel.id];
-		const isDownloading = status?.status === "Downloading"
-			|| preparingDownloads.includes(novel.id)
-			|| isNovelDownloading(novel.id);
 
 		let coverSrc = novel.coverURL ?? novel.thumbnailURL ?? "";
 		if (source.cloudflareProtected) coverSrc = MissingImageBanner; // test.jpg
 		if (novel.isInLibrary && novel.localCoverPath) coverSrc = getUnCachedFileSrc(novel.localCoverPath);
 
-		return <CardUI
+		return <NovelDownloadCard
 			key={novel.id}
+			novel={novel}
 			href={`/novel?fromRoute=${location.pathname}`}
 			imageURL={coverSrc}
-			title={novel.title}
 			subTitle={novel.authors.join(', ')}
 			badges={[
 				novel.isInLibrary ?
@@ -180,31 +165,7 @@ function RouteComponent() {
 					</Badge>
 					: null,
 			]}
-			action={
-				<TooltipUI content={isDownloading ? "Downloading" : "Download"} side="bottom">
-					<Button
-						size="icon"
-						className="size-8"
-						disabled={isDownloading || !cfReady}
-						onClick={(e) => {
-							e.preventDefault();
-							e.stopPropagation();
-							handleQuickDownload(novel);
-						}}
-					>
-						{isDownloading ? <CircleDashed className="animate-spin" /> : <DownloadSolid />}
-					</Button>
-				</TooltipUI>
-			}
-			footer={status &&
-				<div className="flex flex-col gap-1">
-					<div className="flex justify-between">
-						<TinyP>{status.status}</TinyP>
-						<TinyP>{status.downloaded_chapters_count} / {novel.totalChapters ?? "?"}</TinyP>
-					</div>
-					<Progress value={((status.downloaded_chapters_count || 0) / (novel.totalChapters || 1)) * 100} />
-				</div>
-			}
+			disabled={!cfReady}
 			onClick={() => setActiveNovel(novel)}
 		/>
 	}
